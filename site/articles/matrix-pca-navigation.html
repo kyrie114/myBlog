@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>用 PCA 当导航读《机器学习的矩阵方法》 · kyrie114</title>
+  <meta name="description" content="个人分享：AI工程从零 × 矩阵方法跟读" />
+  <style>
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --brand: #0f172a;
+  --sky: #0284c7;
+  --indigo: #4f46e5;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: radial-gradient(circle at top, #eef2ff 0%, var(--bg) 45%);
+  color: var(--text);
+  line-height: 1.7;
+}
+a { color: inherit; text-decoration: none; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+.nav {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 40px; gap: 12px; flex-wrap: wrap;
+}
+.nav .brand { font-weight: 800; letter-spacing: .02em; }
+.nav .links a { margin-left: 14px; color: var(--muted); font-size: 14px; }
+.nav .links a:hover { color: var(--text); }
+.hero h1 { font-size: 40px; margin: 0 0 8px; letter-spacing: -0.02em; }
+.hero .sub { color: var(--muted); font-size: 18px; margin-bottom: 24px; }
+.grid3, .grid2 { display: grid; gap: 14px; }
+.grid3 { grid-template-columns: repeat(3, 1fr); margin-bottom: 28px; }
+.grid2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 720px) {
+  .grid3, .grid2 { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 32px; }
+}
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 18px; padding: 18px 18px 16px;
+}
+.card .k { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.card h3 { margin: 0 0 8px; font-size: 18px; }
+.card p { margin: 0; color: var(--muted); font-size: 14px; }
+.section-title { font-size: 24px; margin: 36px 0 8px; }
+.section-desc { color: var(--muted); margin: 0 0 16px; }
+.series {
+  display: block; border-radius: 20px; border: 1px solid var(--line);
+  background: linear-gradient(160deg, #fff, #f8fafc); padding: 22px;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.series:hover { border-color: #cbd5e1; transform: translateY(-1px); }
+.series.sky .tag { color: var(--sky); }
+.series.indigo .tag { color: var(--indigo); }
+.series .tag { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.series h2 { margin: 8px 0; font-size: 22px; }
+.article-list { display: grid; gap: 12px; margin-top: 12px; }
+.article-item {
+  display: block; background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 16px 18px;
+}
+.article-item:hover { border-color: #94a3b8; }
+.article-item .meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.article-item h3 { margin: 0 0 6px; font-size: 17px; }
+.footer { margin-top: 48px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 18px; }
+.article-body { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 28px 24px; }
+.article-body h1 { margin-top: 0; font-size: 30px; line-height: 1.3; }
+.article-body h2 { font-size: 20px; margin-top: 28px; }
+.article-body code, .article-body .math { font-family: ui-monospace, Consolas, monospace; }
+.article-body ul { padding-left: 1.2em; }
+.article-body li { margin: 6px 0; }
+.back { display: inline-block; margin-bottom: 18px; color: var(--muted); font-size: 14px; }
+.badge {
+  display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px;
+  background: #eef2ff; color: #3730a3; margin-right: 6px;
+}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <a class="brand" href="../index.html">kyrie114 的博客</a>
+      <div class="links">
+        <a href="../index.html">首页</a>
+        <a href="../share.html">个人分享</a>
+      </div>
+    </div>
+    
+  <a class="back" href="../share.html">← 个人分享</a>
+  <article class="article-body">
+    <div class="meta" style="margin-bottom:10px"><span class="badge">矩阵方法跟读</span>个人分享</div>
+    <h1>用 PCA 当导航读《机器学习的矩阵方法》</h1>
+    
+<p>个人分享 · 矩阵方法跟读。</p>
+<p>把 PCA 当成全书导航，而不是孤章算法：</p>
+<ul>
+  <li>向量空间 / 基与秩 → 你在什么空间里投影</li>
+  <li>内积与投影 → 方差、正交分解的语言</li>
+  <li>矩阵分解 → 特征分解只是入口</li>
+  <li>微分 / 概率 / 优化 → 目标函数怎么推、怎么推广</li>
+</ul>
+<p>后面章节可以问自己：它在为 PCA 的哪一块补语言？</p>
+
+  </article>
+  
+    <div class="footer">© 2026 kyrie114 · 个人分享栏目 · 静态预览（完整 myBlog 栈另需后端）</div>
+  </div>
+</body>
+</html>
