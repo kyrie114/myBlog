@@ -3,123 +3,237 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>kyrie114 的博客</title>
-  <meta name="description" content="个人分享：AI工程从零 × 矩阵方法跟读" />
+  <title>kyrie114 · Everything is a note</title>
+  <meta name="description" content="个人分享：AI工程从零 × 矩阵方法跟读。参考 DeepSeek Harness 的插件式信息架构。" />
   <style>
-:root {
-  --bg: #f6f7f9;
-  --card: #ffffff;
-  --text: #111827;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --brand: #0f172a;
-  --sky: #0284c7;
-  --indigo: #4f46e5;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: radial-gradient(circle at top, #eef2ff 0%, var(--bg) 45%);
-  color: var(--text);
-  line-height: 1.7;
-}
-a { color: inherit; text-decoration: none; }
-.wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
-.nav {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 40px; gap: 12px; flex-wrap: wrap;
-}
-.nav .brand { font-weight: 800; letter-spacing: .02em; }
-.nav .links a { margin-left: 14px; color: var(--muted); font-size: 14px; }
-.nav .links a:hover { color: var(--text); }
-.hero h1 { font-size: 40px; margin: 0 0 8px; letter-spacing: -0.02em; }
-.hero .sub { color: var(--muted); font-size: 18px; margin-bottom: 24px; }
-.grid3, .grid2 { display: grid; gap: 14px; }
-.grid3 { grid-template-columns: repeat(3, 1fr); margin-bottom: 28px; }
-.grid2 { grid-template-columns: repeat(2, 1fr); }
-@media (max-width: 720px) {
-  .grid3, .grid2 { grid-template-columns: 1fr; }
-  .hero h1 { font-size: 32px; }
-}
-.card {
-  background: var(--card); border: 1px solid var(--line);
-  border-radius: 18px; padding: 18px 18px 16px;
-}
-.card .k { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.card h3 { margin: 0 0 8px; font-size: 18px; }
-.card p { margin: 0; color: var(--muted); font-size: 14px; }
-.section-title { font-size: 24px; margin: 36px 0 8px; }
-.section-desc { color: var(--muted); margin: 0 0 16px; }
-.series {
-  display: block; border-radius: 20px; border: 1px solid var(--line);
-  background: linear-gradient(160deg, #fff, #f8fafc); padding: 22px;
-  transition: border-color .15s ease, transform .15s ease;
-}
-.series:hover { border-color: #cbd5e1; transform: translateY(-1px); }
-.series.sky .tag { color: var(--sky); }
-.series.indigo .tag { color: var(--indigo); }
-.series .tag { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.series h2 { margin: 8px 0; font-size: 22px; }
-.article-list { display: grid; gap: 12px; margin-top: 12px; }
-.article-item {
-  display: block; background: var(--card); border: 1px solid var(--line);
-  border-radius: 14px; padding: 16px 18px;
-}
-.article-item:hover { border-color: #94a3b8; }
-.article-item .meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-.article-item h3 { margin: 0 0 6px; font-size: 17px; }
-.footer { margin-top: 48px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 18px; }
-.article-body { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 28px 24px; }
-.article-body h1 { margin-top: 0; font-size: 30px; line-height: 1.3; }
-.article-body h2 { font-size: 20px; margin-top: 28px; }
-.article-body code, .article-body .math { font-family: ui-monospace, Consolas, monospace; }
-.article-body ul { padding-left: 1.2em; }
-.article-body li { margin: 6px 0; }
-.back { display: inline-block; margin-bottom: 18px; color: var(--muted); font-size: 14px; }
-.badge {
-  display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px;
-  background: #eef2ff; color: #3730a3; margin-right: 6px;
-}
-</style>
+    :root {
+      --bg: #07090d;
+      --bg2: #0d1117;
+      --panel: #12161e;
+      --panel2: #171c26;
+      --line: rgba(255,255,255,.08);
+      --text: #e8eaed;
+      --muted: #9aa3b2;
+      --faint: #6b7280;
+      --accent: #4cc9f0;
+      --accent2: #7c5cff;
+      --good: #34d399;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: ui-sans-serif, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(900px 420px at 15% -10%, rgba(76,201,240,.18), transparent 60%),
+        radial-gradient(700px 380px at 90% 0%, rgba(124,92,255,.16), transparent 55%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      min-height: 100vh;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 72px; }
+    .topnav {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 56px; gap: 12px; flex-wrap: wrap;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .02em;
+    }
+    .logo-mark {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 24px rgba(76,201,240,.35);
+    }
+    .topnav .links a {
+      margin-left: 16px; color: var(--muted); font-size: 14px;
+    }
+    .topnav .links a:hover { color: var(--text); }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid var(--line); background: rgba(255,255,255,.03);
+      color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 12px;
+      margin-bottom: 18px;
+    }
+    .pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 10px var(--good); }
+    .hero h1 {
+      font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -0.04em;
+      margin: 0 0 18px; font-weight: 800;
+    }
+    .hero h1 .grad {
+      background: linear-gradient(90deg, #fff 10%, var(--accent) 55%, var(--accent2));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero-lead {
+      max-width: 720px; color: var(--muted); font-size: 18px; margin: 0 0 28px;
+    }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 12px; padding: 12px 18px; font-size: 14px; font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #1f2937, #111827);
+      border-color: rgba(255,255,255,.14); color: #fff;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .btn-primary:hover { border-color: rgba(76,201,240,.45); }
+    .btn-ghost {
+      background: transparent; border-color: var(--line); color: var(--muted);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
+    .term {
+      background: #05070a; border: 1px solid var(--line); border-radius: 14px;
+      padding: 14px 16px; font-family: ui-monospace, Consolas, monospace;
+      font-size: 13px; color: #c7d2fe; overflow-x: auto; margin-bottom: 10px;
+    }
+    .term .prompt { color: var(--accent); }
+    .term .cmd { color: #e5e7eb; }
+    .ref {
+      font-size: 12px; color: var(--faint); margin: 8px 0 48px;
+    }
+    .ref a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    .section { margin-top: 56px; }
+    .section h2 {
+      font-size: 28px; letter-spacing: -0.02em; margin: 0 0 10px;
+    }
+    .section .desc { color: var(--muted); margin: 0 0 22px; max-width: 720px; }
+    .plugin-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+    }
+    @media (max-width: 860px) {
+      .plugin-grid { grid-template-columns: 1fr; }
+    }
+    .plugin {
+      background: linear-gradient(180deg, var(--panel), var(--panel2));
+      border: 1px solid var(--line); border-radius: 18px; padding: 18px;
+      min-height: 150px;
+    }
+    .plugin .k {
+      font-size: 12px; color: var(--accent); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px;
+    }
+    .plugin h3 { margin: 0 0 8px; font-size: 18px; }
+    .plugin p { margin: 0; color: var(--muted); font-size: 14px; }
+    .modes {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+    }
+    @media (max-width: 860px) { .modes { grid-template-columns: 1fr; } }
+    .mode {
+      display: block; border-radius: 20px; border: 1px solid var(--line);
+      background: rgba(255,255,255,.02); padding: 22px; transition: border-color .15s, transform .15s;
+    }
+    .mode:hover { border-color: rgba(76,201,240,.35); transform: translateY(-1px); }
+    .mode .tag { font-size: 12px; color: var(--accent2); font-weight: 700; letter-spacing: .06em; }
+    .mode h3 { margin: 8px 0; font-size: 22px; }
+    .mode p { margin: 0; color: var(--muted); font-size: 14px; }
+    .about {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px;
+    }
+    @media (max-width: 860px) { .about { grid-template-columns: 1fr; } }
+    .about .card {
+      border: 1px solid var(--line); border-radius: 16px; padding: 16px; background: rgba(255,255,255,.02);
+    }
+    .about .card .k { color: var(--faint); font-size: 12px; margin-bottom: 6px; }
+    .footer {
+      margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
+      color: var(--faint); font-size: 12px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    }
+  </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="nav">
-      <a class="brand" href="./index.html">kyrie114 的博客</a>
+    <div class="topnav">
+      <a class="logo" href="./index.html"><span class="logo-mark"></span>kyrie114</a>
       <div class="links">
-        <a href="./index.html">首页</a>
         <a href="./share.html">个人分享</a>
+        <a href="./share.html#ai">AI工程从零</a>
+        <a href="./share.html#matrix">矩阵方法</a>
       </div>
     </div>
-    
-<div class="hero">
-  <p class="sub" style="margin-bottom:8px">个人博客 · kyrie114</p>
-  <h1>关于我</h1>
-  <p class="sub">项目，创意，灵感，心得</p>
-</div>
-<div class="grid3">
-  <div class="card"><div class="k">座右铭</div><h3>已识乾坤大，尤怜草木青</h3></div>
-  <div class="card"><div class="k">在学</div><h3>零到全栈 · AI 工程</h3></div>
-  <div class="card"><div class="k">兴趣</div><h3>阅读、写作、旅行、摄影</h3></div>
-</div>
-<h2 class="section-title">个人分享</h2>
-<p class="section-desc">两条学习线都在这里分享，并列更新。</p>
-<div class="grid2">
-  <a class="series sky" href="./share.html#ai">
-    <div class="tag">系列</div>
-    <h2>AI工程从零</h2>
-    <p>环境、工具、线性代数直觉等工程向干货。</p>
-  </a>
-  <a class="series indigo" href="./share.html#matrix">
-    <div class="tag">系列</div>
-    <h2>矩阵方法跟读</h2>
-    <p>跟读教材：PCA 五步、方差与重构误差。</p>
-  </a>
-</div>
-<p style="margin-top:22px"><a class="series" style="display:inline-block;padding:12px 18px;background:#0f172a;color:#fff;border:none" href="./share.html">进入个人分享</a></p>
 
-    <div class="footer">© 2026 kyrie114 · 个人分享栏目 · 静态预览（完整 myBlog 栈另需后端）</div>
+    <div class="hero">
+      <div class="pill"><i></i> developer preview · personal notes</div>
+      <h1>Everything is a <span class="grad">note</span></h1>
+      <p class="hero-lead">
+        把学习拆成可替换的模块：环境、工具、直觉、公式。个人分享栏目里，
+        <strong style="color:#fff">AI工程从零</strong> 与 <strong style="color:#fff">矩阵方法跟读</strong> 并列更新——像插件一样组合，而不是一条主线压另一条。
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="./share.html">打开个人分享</a>
+        <a class="btn btn-ghost" href="./share.html#ai">AI工程从零</a>
+        <a class="btn btn-ghost" href="./share.html#matrix">矩阵方法跟读</a>
+      </div>
+      <div class="term"><span class="prompt">$</span> <span class="cmd">open kyrie114/share --series ai-engineering,matrix-methods</span></div>
+      <div class="term"><span class="prompt">$</span> <span class="cmd">git clone https://github.com/kyrie114/myBlog</span></div>
+      <p class="ref">主页信息架构参考
+        <a href="https://www.deepseek.com/harness/en/" target="_blank" rel="noopener">DeepSeek Harness: Everything is a plugin</a>
+      </p>
+    </div>
+
+    <section class="section">
+      <h2>Notes keep learning composable</h2>
+      <p class="desc">模型是灵魂；笔记是 harness。每篇只暴露一个可插拔能力，方便以后重组。</p>
+      <div class="plugin-grid">
+        <div class="plugin">
+          <div class="k">plugin</div>
+          <h3>Capabilities as notes</h3>
+          <p>环境栈、工具地图、线代直觉、PCA 五步……每篇一个能力点，可单独替换或加深。</p>
+        </div>
+        <div class="plugin">
+          <div class="k">trace</div>
+          <h3>Every step is readable</h3>
+          <p>先步骤，再原理，再等价关系。公式保留，解释用人话——方便回放和检索。</p>
+        </div>
+        <div class="plugin">
+          <div class="k">modes</div>
+          <h3>Multiple study modes</h3>
+          <p>工程向短打与教材跟读并行。同一「个人分享」栏目下切换系列，不改站点骨架。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Runtime modes</h2>
+      <p class="desc">选择你现在要进的模式。内容都在个人分享里。</p>
+      <div class="modes">
+        <a class="mode" href="./share.html#ai">
+          <div class="tag">STANDARD</div>
+          <h3>AI工程从零</h3>
+          <p>Day1 环境、Phase0 工具、线性代数直觉。教学干货，短打可发。</p>
+        </a>
+        <a class="mode" href="./share.html#matrix">
+          <div class="tag">DEEP READ</div>
+          <h3>矩阵方法跟读</h3>
+          <p>PCA 五步、方差最大化、重构误差等价、用 PCA 导航全书。</p>
+        </a>
+        <a class="mode" href="./articles/ai-day1-env.html">
+          <div class="tag">MINIMAL</div>
+          <h3>先跑通一篇</h3>
+          <p>从 Day1 开发环境开始，验证「预检通过再往下」。</p>
+        </a>
+        <a class="mode" href="./articles/matrix-pca-five-steps.html">
+          <div class="tag">CREATOR</div>
+          <h3>拼一章跟读</h3>
+          <p>从 PCA 五步走进入，再按需接方差 / 重构 / 导航篇。</p>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>About the operator</h2>
+      <p class="desc">座右铭与当前在学，方便你知道这些笔记是谁在写。</p>
+      <div class="about">
+        <div class="card"><div class="k">座右铭</div><strong>已识乾坤大，尤怜草木青</strong></div>
+        <div class="card"><div class="k">在学</div><strong>零到全栈 · AI 工程</strong></div>
+        <div class="card"><div class="k">兴趣</div><strong>阅读、写作、旅行、摄影</strong></div>
+      </div>
+    </section>
+
+    <div class="footer">
+      <span>© 2026 kyrie114 · 个人分享静态预览</span>
+      <span>layout inspired by DeepSeek Harness</span>
+    </div>
   </div>
 </body>
 </html>
