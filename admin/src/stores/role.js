@@ -1,0 +1,498 @@
+/*
+ * [role.js]
+ * --------------------------------------------------------------------------------
+ * This software is licensed under the MIT License.
+ * However, any distribution or modification must retain this copyright notice.
+ * See LICENSE for full terms.
+ * --------------------------------------------------------------------------------
+ * author: "Jiu Liu"
+ * author_contact: "QQ: 3209174373, GitHub: https://github.com/DCSCDF"
+ * license: "MIT"
+ * license_exception: "Mandatory attribution retention"
+ * UpdateTime: 2026/2/18 10:49
+ *
+ */
+
+
+/** 超级管理员角色编码（唯一，拥有系统所有权限） */
+export const SUPER_ADMIN_ROLE_CODE = 'SUPER_ADMIN';
+
+/**
+ * 判断角色是否为超级管理员
+ * @param {Object} role - 角色对象 { code, superAdmin }
+ */
+export function isSuperAdminRole(role) {
+	let result = false;
+	if (role) {
+		result = role.code === SUPER_ADMIN_ROLE_CODE || role.superAdmin === true;
+	}
+	return result;
+}
+
+import {defineStore} from 'pinia';
+import {computed, ref} from 'vue';
+import {roleApi} from '../api/system/roleApi.js';
+import logger from '../utils/logger.js';
+
+export const useRoleStore = defineStore('role', () => {
+	// 角色列表
+	const roles = ref([]);
+	const loading = ref(false);
+
+	// 分页信息（与后端字段对应：current, size, total, pages）
+	const pagination = ref({
+		current: 1,
+		pageSize: 10,
+		total: 0,
+		pages: 0
+	});
+
+	// 查询参数：keyword 匹配 code/name/description，status 0/1，isSystem 0/1
+	const queryParams = ref({
+		keyword: '',
+		status: undefined,
+		isSystem: undefined
+	});
+
+	/** 列表接口返回的 filterOptions（status、isSystem 筛选项） */
+	const filterOptions = ref({});
+
+	// 当前选中的角色详情（含权限、权限组）
+	const roleDetail = ref(null);
+	const permissionsDetailLoading = ref(false);
+
+	/**
+	 * 分页获取角色列表（支持 keyword/status/isSystem）
+	 * @param {Object} params - { currentPage?, pageSize?, keyword?, status?, isSystem? }
+	 * @returns {Promise<Array>}
+	 */
+	const fetchRoles = async (params = {}) => {
+		loading.value = true;
+		try {
+			const normalizedParams = normalizeFetchParams(params);
+			const requestParams = buildRequestParams(normalizedParams);
+
+			const res = await roleApi.list(requestParams);
+			validateApiResponse(res);
+
+			const {
+				records = [],
+				total = 0,
+				current = 1,
+				size = normalizedParams.pageSize,
+				pages = 0,
+				filterOptions: options = {}
+			} = res.data;
+
+			updateRoleState(records, {current, pageSize: size, total, pages}, options);
+			logger.log('角色列表获取成功，总数:', total);
+
+			return roles.value;
+		} catch (error) {
+			handleFetchError(error);
+			throw error;
+		} finally {
+			loading.value = false;
+		}
+	};
+
+	/**
+	 * 标准化获取参数
+	 * @param {Object} params - 原始参数对象
+	 * @returns {Object} 标准化后的参数
+	 */
+	const normalizeFetchParams = (params) => {
+		const currentPage = params.currentPage ?? pagination.value.current;
+		const pageSize = params.pageSize ?? pagination.value.pageSize;
+		const keyword = params.keyword !== undefined ? params.keyword : queryParams.value.keyword;
+		const status = params.status !== undefined ? params.status : queryParams.value.status;
+		const isSystem = params.isSystem !== undefined ? params.isSystem : queryParams.value.isSystem;
+
+		return {currentPage, pageSize, keyword, status, isSystem};
+	};
+
+	/**
+	 * 构建请求参数
+	 * @param {Object} normalizedParams - 标准化参数
+	 * @returns {Object} 请求参数对象
+	 */
+	const buildRequestParams = (normalizedParams) => {
+		const {currentPage, pageSize, keyword, status, isSystem} = normalizedParams;
+		const requestParams = {currentPage, pageSize};
+
+		// 添加关键字参数
+		if (hasValidKeyword(keyword)) {
+			requestParams.keyword = String(keyword).trim();
+		}
+
+		// 添加状态参数
+		if (status !== undefined) {
+			requestParams.status = status;
+		}
+
+		// 添加系统标识参数
+		if (isSystem !== undefined) {
+			requestParams.isSystem = isSystem;
+		}
+
+		return requestParams;
+	};
+
+	/**
+	 * 检查关键字是否有效
+	 * @param {*} keyword - 关键字
+	 * @returns {boolean} 是否为有效关键字
+	 */
+	const hasValidKeyword = (keyword) => {
+		return keyword != null && String(keyword).trim() !== '';
+	};
+
+	/**
+	 * 验证API响应
+	 * @param {Object} response - API响应对象
+	 * @throws {Error} 当响应无效时抛出错误
+	 */
+	const validateApiResponse = (response) => {
+		const isValidResponse = response.success === true && response.data !== null && response.data !== undefined;
+
+		if (!isValidResponse) {
+			throw new Error(response.errorMsg || '获取角色列表失败');
+		}
+	};
+
+	/**
+	 * 更新角色状态
+	 * @param {Array} records - 角色记录数组
+	 * @param {Object} paginationData - 分页数据
+	 * @param {Object} filterOptions - 过滤选项
+	 */
+	const updateRoleState = (records, paginationData, filterOptions) => {
+		roles.value = (records || []).map((item) => ({...item, key: item.id}));
+		pagination.value = paginationData;
+		filterOptions.value = filterOptions;
+	};
+
+	/**
+	 * 处理获取错误
+	 * @param {Error} error - 错误对象
+	 */
+	const handleFetchError = (error) => {
+		logger.error('获取角色列表失败:', error);
+		roles.value = [];
+		pagination.value.total = 0;
+	};
+
+	/**
+	 * 根据 ID 获取角色详情
+	 * @param {number} id - 角色 ID
+	 * @returns {Promise<Object|null>}
+	 */
+	const fetchRoleById = async (id) => {
+		let result;
+
+		try {
+			const res = await roleApi.getById(id);
+			if (res.success === true && res.data) {
+				result = res.data;
+			} else {
+				// API 响应无效，记录错误并返回 null
+				const errorMessage = res.errorMsg || '获取角色详情失败';
+				logger.error(errorMessage);
+				result = null;
+			}
+		} catch (error) {
+			// 处理网络错误或其他意外错误
+			logger.error('获取角色详情失败:', error);
+			result = null;
+		}
+
+		return result;
+	};
+
+	/**
+	 * 获取角色关联的权限和权限组
+	 * @param {number} id - 角色 ID
+	 * @returns {Promise<{ role, permissions, permissionGroups }|null>}
+	 */
+	const fetchPermissionsDetail = async (id) => {
+		permissionsDetailLoading.value = true;
+		let result = null;
+
+		try {
+			const res = await roleApi.getPermissionsDetail(id);
+			if (res.success === true && res.data) {
+				const data = res.data;
+				// 后端可能返回合并后的 permissions（直接分配 + 权限组），同一权限若既在组内又单独出现会重复，按 id 去重
+				if (data.permissions && Array.isArray(data.permissions)) {
+					const seen = new Set();
+					data.permissions = data.permissions.filter((p) => {
+						const shouldInclude = !seen.has(p.id);
+						if (shouldInclude) {
+							seen.add(p.id);
+						}
+						return shouldInclude;
+					});
+				}
+				roleDetail.value = data;
+				result = data;
+			} else {
+				// API 响应无效，记录错误并返回 null
+				const errorMessage = res.errorMsg || '获取权限详情失败';
+				logger.error(errorMessage);
+				roleDetail.value = null;
+				result = null;
+			}
+		} catch (error) {
+			// 处理网络错误或其他意外错误
+			logger.error('获取角色权限详情失败:', error);
+			roleDetail.value = null;
+			result = null;
+		} finally {
+			permissionsDetailLoading.value = false;
+		}
+
+		return result;
+	};
+
+	/**
+	 * 创建角色
+	 * @param {Object} body - { name, description?, sortOrder?, status? }
+	 * @returns {Promise<Object|boolean>}
+	 */
+	const createRole = async (body) => {
+		let result;
+		try {
+			const res = await roleApi.create(body);
+			if (res.success === true) {
+				logger.log('角色创建成功');
+				result = res.data || true;
+			} else {
+				const errorMessage = res.errorMsg || '创建角色失败';
+				logger.error(errorMessage);
+				result = Promise.reject(new Error(errorMessage));
+			}
+		} catch (error) {
+			logger.error('创建角色失败:', error);
+			if (!(error instanceof Error)) {
+				throw new Error(error?.message || '创建角色失败');
+			}
+			throw error;
+		}
+		return result;
+	};
+
+	/**
+	 * 修改角色
+	 * @param {number} id - 角色 ID
+	 * @param {Object} body - { name, description?, sortOrder?, status? }
+	 * @returns {Promise<Object|boolean>}
+	 */
+	const updateRole = async (id, body) => {
+		let result;
+		try {
+			const res = await roleApi.update(id, body);
+			if (res.success === true) {
+				logger.log('角色修改成功:', id);
+				result = res.data || true;
+			} else {
+				const errorMessage = res.errorMsg || '修改角色失败';
+				logger.error(errorMessage);
+				result = Promise.reject(new Error(errorMessage));
+			}
+		} catch (error) {
+			logger.error('修改角色失败:', error);
+			if (!(error instanceof Error)) {
+				throw new Error(error?.message || '修改角色失败');
+			}
+			throw error;
+		}
+		return result;
+	};
+
+	/**
+	 * 删除角色
+	 * @param {number} id - 角色 ID
+	 * @returns {Promise<boolean>}
+	 */
+	const deleteRole = async (id) => {
+		let result;
+
+		try {
+			const res = await roleApi.delete(id);
+			if (res.success === true) {
+				logger.log('角色删除成功:', id);
+				result = true;
+			} else {
+				// API 响应失败，记录错误并返回 false
+				const errorMessage = res.errorMsg || '删除角色失败';
+				logger.error(errorMessage);
+				result = false;
+			}
+		} catch (error) {
+			// 处理网络错误或其他意外错误
+			logger.error('删除角色失败:', error);
+			result = false;
+		}
+
+		return result;
+	};
+
+	/**
+	 * 为角色添加权限
+	 * @param {number} roleId - 角色 ID
+	 * @param {number} permissionId - 权限 ID
+	 * @returns {Promise<boolean>}
+	 */
+	const addPermissionToRole = async (roleId, permissionId) => {
+		try {
+			const res = await roleApi.addPermission(roleId, {permissionId});
+			console.log('addPermissionToRole 响应:', res);
+			if (res.success === true) {
+				logger.log('角色添加权限成功:', roleId, permissionId);
+				return true;
+			} else {
+				const errorMessage = res.errorMsg || '添加权限失败';
+				logger.error(errorMessage);
+				return Promise.reject(new Error(errorMessage));
+			}
+		} catch (error) {
+			console.error('addPermissionToRole 捕获到错误:', error);
+			logger.error('角色添加权限失败:', error);
+			return Promise.reject(new Error(error?.message || '添加权限失败'));
+		}
+	};
+
+	/**
+	 * 从角色移除权限
+	 * @param {number} roleId - 角色 ID
+	 * @param {number} permissionId - 权限 ID
+	 * @returns {Promise<boolean>}
+	 */
+	const removePermissionFromRole = async (roleId, permissionId) => {
+		let result;
+
+		try {
+			const res = await roleApi.removePermission(roleId, permissionId);
+			if (res.success === true) {
+				logger.log('角色移除权限成功:', roleId, permissionId);
+				result = true;
+			} else {
+				// API 响应失败，记录错误并返回 false
+				const errorMessage = res.errorMsg || '移除权限失败';
+				logger.error(errorMessage);
+				result = false;
+			}
+		} catch (error) {
+			// 处理网络错误或其他意外错误
+			logger.error('角色移除权限失败:', error);
+			result = false;
+		}
+
+		return result;
+	};
+
+	/**
+	 * 为角色添加权限组
+	 * @param {number} roleId - 角色 ID
+	 * @param {number} groupId - 权限组 ID
+	 * @returns {Promise<boolean>}
+	 */
+	const addPermissionGroupToRole = async (roleId, groupId) => {
+		try {
+			const res = await roleApi.addPermissionGroup(roleId, {groupId});
+			console.log('addPermissionGroupToRole 响应:', res);
+			if (res.success === true) {
+				logger.log('角色添加权限组成功:', roleId, groupId);
+				return true;
+			} else {
+				const errorMessage = res.errorMsg || '添加权限组失败';
+				logger.error(errorMessage);
+				return Promise.reject(new Error(errorMessage));
+			}
+		} catch (error) {
+			console.error('addPermissionGroupToRole 捕获到错误:', error);
+			logger.error('角色添加权限组失败:', error);
+			return Promise.reject(new Error(error?.message || '添加权限组失败'));
+		}
+	};
+
+	/**
+	 * 从角色移除权限组
+	 * @param {number} roleId - 角色 ID
+	 * @param {number} groupId - 权限组 ID
+	 * @returns {Promise<boolean>}
+	 */
+	const removePermissionGroupFromRole = async (roleId, groupId) => {
+		let result;
+
+		try {
+			const res = await roleApi.removePermissionGroup(roleId, groupId);
+			if (res.success === true) {
+				logger.log('角色移除权限组成功:', roleId, groupId);
+				result = true;
+			} else {
+				// API 响应失败，记录错误并返回 false
+				const errorMessage = res.errorMsg || '移除权限组失败';
+				logger.error(errorMessage);
+				result = false;
+			}
+		} catch (error) {
+			// 处理网络错误或其他意外错误
+			logger.error('角色移除权限组失败:', error);
+			result = false;
+		}
+
+		return result;
+	};
+
+	/**
+	 * 更新分页
+	 * @param {Object} newPagination - { current?, pageSize? }
+	 */
+	const updatePagination = (newPagination) => {
+		pagination.value = {...pagination.value, ...newPagination};
+	};
+
+	/**
+	 * 更新查询参数（keyword/status/isSystem）
+	 * @param {Object} newParams - { keyword?, status?, isSystem? }
+	 */
+	const updateQueryParams = (newParams) => {
+		queryParams.value = {...queryParams.value, ...newParams};
+	};
+
+	/**
+	 * 清空角色详情缓存
+	 */
+	const clearRoleDetail = () => {
+		roleDetail.value = null;
+	};
+
+	const currentRoles = computed(() => roles.value);
+	const currentPagination = computed(() => pagination.value);
+
+	return {
+		roles,
+		loading,
+		pagination,
+		queryParams,
+		filterOptions,
+		roleDetail,
+		permissionsDetailLoading,
+		fetchRoles,
+		fetchRoleById,
+		fetchPermissionsDetail,
+		createRole,
+		updateRole,
+		deleteRole,
+		addPermissionToRole,
+		removePermissionFromRole,
+		addPermissionGroupToRole,
+		removePermissionGroupFromRole,
+		updatePagination,
+		updateQueryParams,
+		clearRoleDetail,
+		currentRoles,
+		currentPagination
+	};
+});

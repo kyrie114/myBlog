@@ -1,0 +1,205 @@
+<!--
+  - [header.vue]
+  - -------------------------------------------------------------------------------
+  - This software is licensed under the MIT License.
+  - However, any distribution or modification must retain this copyright notice.
+  - See LICENSE for full terms.
+  - -------------------------------------------------------------------------------
+  - author: "Jiu Liu"
+  - author_contact: "QQ: 3209174373, GitHub: https://github.com/DCSCDF"
+  - license: "MIT"
+  - license_exception: "Mandatory attribution retention"
+  - UpdateTime: 2026/2/17 22:27
+  -
+  -->
+
+<template>
+        <header
+            class="  !backdrop-blur-lg  h-14 flex justify-between items-center border-b border-gray-200 px-4 fixed top-0 left-0 right-0 z-50">
+                <div class="flex items-center">
+                        <button
+                            class="flex items-center  justify-center text-black bg-transparent border-0 shadow-none outline-0 p-2 hover:bg-transparent focus:outline-none focus:ring-0"
+                            style="cursor: pointer;"
+                            @click="handleMenuToggle">
+                                <MenuUnfoldOutlined v-if="showExpandIcon" class="!leading-none !m-0"
+                                                    style="width: 2em; height: 2em; display: flex; align-items: center; justify-content: center; color: black;"/>
+                                <MenuFoldOutlined v-else class="!leading-none !m-0"
+                                                  style="width: 2em; height: 2em; display: flex; align-items: center; justify-content: center; color: black;"/>
+                        </button>
+                        <div class="my-2 ">
+                                <a-button v-if="showBackButton"
+                                          type="text"
+                                          @click="handleBack">
+                                        <!--                                        <ArrowLeftOutlined class="mr-2 " style="color: #9ca3af"/>-->
+                                        <span class="text-gray-600">返回主页</span>
+                                </a-button>
+                        </div>
+                </div>
+
+                <div class="flex items-center gap-3 mx-0 md:mx-8">
+
+
+                        <!--                        <a-button :icon="h(QuestionCircleOutlined)" color="gray"-->
+                        <!--                                  style="color: gray;"-->
+                        <!--                                  type="text"-->
+                        <!--                                  @click="handleDocClick"></a-button>-->
+
+
+                        <a-dropdown :overlay="dropdownOverlay">
+                                <div
+                                    class="flex rounded-lg transition-colors py-1.5 px-2 hover:bg-gray-200/50"
+                                >
+                                        <div class="flex-shrink-0">
+                                                <a-avatar :size="32" :src="profile.avatarUrl">
+                                                        {{ (profile.nickname || '昵称').charAt(0) }}
+                                                </a-avatar>
+                                        </div>
+                                        <div class="flex flex-col min-w-0 ml-2 justify-end pb-px">
+                                                <div class="text-sm !m-0 text-gray-600 truncate">
+                                                        {{ profile.nickname || '昵称' }}
+                                                </div>
+                                        </div>
+                                </div>
+                        </a-dropdown>
+                </div>
+        </header>
+</template>
+
+<script setup>
+import {computed, defineEmits, defineProps, h, onMounted, ref} from "vue";
+// import {useRouter} from 'vue-router';
+import {authApi} from "../../../api/user/auth/authApi.js";
+import logger from "../../../utils/logger.js";
+import HeaderLogout from "./headerLogout.vue";
+import {MenuFoldOutlined, MenuUnfoldOutlined,} from '@ant-design/icons-vue';
+import {useAuthStore} from '../../../stores/auth.js';
+import {useAppStore} from '../../../stores/app.js';
+import {Menu} from 'ant-design-vue';
+import {publicConfigApi} from '../../../api/system/publicConfigApi.js'
+import {getSmallImageUrl} from '../../../utils/imageUrl.js';
+
+const showBackButton = ref(false)
+
+const redirectUrl = ref('')
+// 检查是否显示返回按钮
+const checkShowBackButton = async () => {
+        try {
+                const configResponse = await publicConfigApi.getConfig({keys: ['site.redirect_url']})
+                if (configResponse.success && configResponse.data && configResponse.data.length > 0) {
+                        const redirectConfig = configResponse.data.find(item => item.configKey === 'site.redirect_url')
+                        if (redirectConfig && redirectConfig.configValue) {
+                                // 检查是否为有效的 URL
+                                const urlPattern = /^https?:\/\/.+/
+                                if (urlPattern.test(redirectConfig.configValue)) {
+                                        redirectUrl.value = redirectConfig.configValue
+                                        showBackButton.value = true
+                                }
+                        }
+                }
+        } catch (error) {
+                console.error('获取 redirect_url 失败:', error)
+        }
+}
+
+// 返回按钮点击事件
+const handleBack = () => {
+        if (redirectUrl.value) {
+                window.location.href = redirectUrl.value + "?back=true"
+        }
+}
+
+onMounted(() => {
+        checkShowBackButton()
+})
+const props = defineProps({
+        collapsed: {
+                type: Boolean,
+                default: false
+        }
+});
+
+const authStore = useAuthStore();
+const appStore = useAppStore();
+// const router = useRouter();
+
+// 从 store 获取用户资料，如果没有则使用默认值
+const profile = computed(() => {
+        const storeProfile = authStore.getUserProfile();
+        const avatarUrl = storeProfile?.avatarUrl || "";
+        return {
+                nickname: storeProfile?.nickname || "",
+                email: storeProfile?.email || "",
+                avatarUrl: avatarUrl ? getSmallImageUrl(avatarUrl) : ""
+        };
+});
+
+const emit = defineEmits(['toggle-collapsed']);
+
+// 使用 app store 的状态
+const isMobile = computed(() => appStore.isMobile);
+
+// 判断是否显示展开图标
+const showExpandIcon = computed(() => {
+        // 在移动端时，如果侧边栏已打开则显示收起图标，否则显示展开图标
+        // 在桌面端时，使用原来的 collapsed 状态
+        return isMobile.value ? !appStore.isMobileSidebarOpen : props.collapsed;
+});
+
+// 下拉菜单内容
+const dropdownOverlay = h(Menu, {}, {
+        default: () => h(HeaderLogout)
+});
+
+const handleMenuToggle = () => {
+        // 如果在移动端，则触发移动端侧边栏切换
+        if (isMobile.value) {
+                appStore.toggleMobileSidebar();
+        } else {
+                // 桌面端则使用原来的切换逻辑
+                emit('toggle-collapsed');
+        }
+};
+
+// // 跳转到文档页面
+// const handleDocClick = () => {
+//         router.push('/doc');
+// };
+
+onMounted(async () => {
+
+        try {
+                const response = await authApi.profile();
+                logger.log("用户信息响应:", response);
+
+                // 正确处理API返回的数据结构 {data: {...用户信息...}}
+                if (response && response.data) {
+                        // 更新 store 中的用户资料
+                        authStore.updateUserProfile({
+                                id: response.data.id,
+                                username: response.data.username,
+                                nickname: response.data.nickname,
+                                email: response.data.email,
+                                avatarUrl: response.data.avatarUrl,
+                                bio: response.data.bio,
+                                status: response.data.status,
+                                createTime: response.data.createTime,
+                                updateTime: response.data.updateTime
+                        });
+
+                        logger.log("用户信息已更新到 store");
+                } else {
+                        logger.warn("用户信息响应格式不正确");
+                }
+        } catch (error) {
+                logger.error("获取用户信息失败", error);
+        }
+
+        // 初始化设备状态
+        appStore.updateDeviceStatus();
+})
+
+// Header组件不再单独监听窗口大小变化，由menu组件统一管理
+// 设备状态通过appStore统一管理
+
+
+</script>

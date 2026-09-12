@@ -1,0 +1,197 @@
+/*
+ * [RateLimitAspect.java]
+ * =======================================
+ * This software is licensed under the MIT License.
+ * However, any distribution or modification must retain this copyright notice.
+ * See LICENSE for full terms.
+ * =======================================
+ * author: "Jiu Liu"
+ * author_contact: "QQ: 3209174373, GitHub: https://github.com/DCSCDF"
+ * license: "MIT"
+ * license_exception: "Mandatory attribution retention"
+ * UpdateTime: 2026/6/11
+ */
+
+package com.jiuliu.myblog_dev.utils.rateLimit;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import jakarta.servlet.http.HttpServletRequest;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import com.jiuliu.myblog_dev.utils.security.ClientIpUtil;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
+
+@Aspect
+@Component
+public class RateLimitAspect {
+
+    private static final Logger log = LoggerFactory.getLogger(RateLimitAspect.class);
+
+    private static final int MAX_ENTRIES = 10000;
+
+    private final ConcurrentHashMap<String, AtomicInteger> counterMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> expireTimeMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ReentrantLock> lockMap = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<String, Boolean> limitedStateMap = new ConcurrentHashMap<>();
+
+    private ScheduledExecutorService cleanupScheduler;
+
+    private final DynamicRateLimitService dynamicRateLimitService;
+    private final ClientIpUtil clientIpUtil;
+
+    public RateLimitAspect(DynamicRateLimitService dynamicRateLimitService, ClientIpUtil clientIpUtil) {
+        this.dynamicRateLimitService = dynamicRateLimitService;
+        this.clientIpUtil = clientIpUtil;
+    }
+
+    @PostConstruct
+    public void init() {
+        cleanupScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "rate-limit-cleanup");
+            t.setDaemon(true);
+            return t;
+        });
+        cleanupScheduler.scheduleAtFixedRate(this::cleanupExpiredKeys, 30, 30, TimeUnit.SECONDS);
+    }
+
+    @Around("@annotation(rateLimit)")
+    @SuppressWarnings("unused")
+    public Object doRateLimit(ProceedingJoinPoint joinPoint, RateLimit rateLimit) throws Throwable {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            throw new IllegalStateException("RateLimit 注解只能用于 Web 请求方法");
+        }
+        HttpServletRequest request = attributes.getRequest();
+
+        String ip = rateLimit.ipBased() ? getClientIpAddress(request) : "global";
+        String limitKey = buildLimitKey(joinPoint, rateLimit, ip);
+        long now = System.currentTimeMillis();
+        int periodMinutes = rateLimit.period() <= 0 ? 1 : rateLimit.period();
+        long periodMs = (long) periodMinutes * 60 * 1000;
+
+        int maxCount = rateLimit.count() <= 0 ? 1 : rateLimit.count();
+
+        if (rateLimit.dynamic()) {
+            int dynamicLimit = dynamicRateLimitService.getEffectiveRateLimit();
+            maxCount = Math.min(maxCount, dynamicLimit);
+        }
+
+        AtomicInteger count = getOrCreateCounter(limitKey, now, periodMs);
+
+        if (count.incrementAndGet() > maxCount) {
+            logRateLimit(ip, limitKey, getMethodSignature(joinPoint), maxCount, rateLimit.ipBased());
+            throw new RateLimitException("请求过于频繁，请稍后再试");
+        }
+
+        // 动态限流：真实统计活跃请求数，供 DynamicRateLimitService 按并发压力调整阈值
+        if (rateLimit.dynamic()) {
+            dynamicRateLimitService.incrementActiveRequests();
+            try {
+                return joinPoint.proceed();
+            } finally {
+                dynamicRateLimitService.decrementActiveRequests();
+            }
+        }
+
+        return joinPoint.proceed();
+    }
+
+    private void logRateLimit(String ip, String key, String method, int limit, boolean ipBased) {
+        Boolean alreadyLimited = limitedStateMap.putIfAbsent(key, true);
+        if (alreadyLimited == null) {
+            if (ipBased) {
+                log.warn("请求被限流: [ip={}, key={}, method={}, limit={}/min]", ip, key, method, limit);
+            } else {
+                log.warn("请求被限流: [key={}, method={}, limit={}/min (全局)]", key, method, limit);
+            }
+        }
+    }
+
+    private AtomicInteger getOrCreateCounter(String key, long now, long periodMs) {
+        if (expireTimeMap.size() > MAX_ENTRIES) {
+            log.warn("限流缓存达到容量上限，触发紧急清理");
+            cleanupExpiredKeys();
+        }
+
+        ReentrantLock lock = lockMap.computeIfAbsent(key, k -> new ReentrantLock());
+        lock.lock();
+        try {
+            Long expire = expireTimeMap.get(key);
+            if (expire != null && now > expire) {
+                log.debug("重置限流计数器: [key={}]", key);
+                AtomicInteger newCounter = new AtomicInteger(0);
+                counterMap.put(key, newCounter);
+                expireTimeMap.put(key, now + periodMs);
+                limitedStateMap.remove(key);
+                return newCounter;
+            }
+
+            AtomicInteger counter = counterMap.computeIfAbsent(key, k -> new AtomicInteger(0));
+            expireTimeMap.putIfAbsent(key, now + periodMs);
+            return counter;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void cleanupExpiredKeys() {
+        long now = System.currentTimeMillis();
+        long gracePeriod = 5 * 60 * 1000;
+        expireTimeMap.entrySet().removeIf(entry -> now > entry.getValue() + gracePeriod);
+        counterMap.keySet().removeIf(key -> !expireTimeMap.containsKey(key));
+        lockMap.keySet().removeIf(key -> !expireTimeMap.containsKey(key));
+        limitedStateMap.keySet().removeIf(key -> !expireTimeMap.containsKey(key));
+        if (log.isDebugEnabled()) {
+            log.debug("限流缓存清理完成，当前活跃 key 数: {}", expireTimeMap.size());
+        }
+    }
+
+
+    private String buildLimitKey(ProceedingJoinPoint joinPoint, RateLimit rateLimit, String ip) {
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        String className = signature.getDeclaringType().getSimpleName();
+        String methodName = signature.getName();
+        return String.format("%s:%s:%s.%s",
+                rateLimit.prefix(), ip, className, methodName);
+    }
+
+    private String getClientIpAddress(HttpServletRequest request) {
+        // 只信任可信代理来源的转发头，防止 X-Forwarded-For/X-Real-IP 伪造绕过限流
+        String ip = clientIpUtil.getClientIp(request);
+        log.debug("获取IP: [ip={}]", ip);
+        return ip;
+    }
+
+    private String getMethodSignature(ProceedingJoinPoint joinPoint) {
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        return signature.getDeclaringType().getSimpleName() + "." + signature.getName();
+    }
+
+    @PreDestroy
+    public void destroy() {
+        cleanupScheduler.shutdown();
+        try {
+            if (!cleanupScheduler.awaitTermination(60, TimeUnit.SECONDS)) {
+                cleanupScheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            cleanupScheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+}

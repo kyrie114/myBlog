@@ -1,0 +1,809 @@
+<!--
+  - [permissiongroup.vue]
+  - -------------------------------------------------------------------------------
+  - This software is licensed under the MIT License.
+  - However, any distribution or modification must retain this copyright notice.
+  - See LICENSE for full terms.
+  - -------------------------------------------------------------------------------
+  - author: "Jiu Liu"
+  - author_contact: "QQ: 3209174373, GitHub: https://github.com/DCSCDF"
+  - license: "MIT"
+  - license_exception: "Mandatory attribution retention"
+  - UpdateTime: 2026/2/18 11:02
+  -
+  -->
+
+<template>
+        <a-card>
+                <div class="mb-4 flex items-center justify-between">
+                        <div>
+                                <h2 class="font-bold text-lg mb-1">权限组管理</h2>
+                                <span class="text-sm text-gray-600">系统内置权限组仅支持查看，不可修改、删除。</span>
+                        </div>
+                        <a-button type="primary" @click="openCreate">新增权限组</a-button>
+                </div>
+
+                <div class="search-filter-bar mb-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+                        <div class="w-full min-w-50 max-w-75">
+                                <a-input
+                                    v-model:value="searchKeyword"
+                                    class="w-full"
+                                    placeholder="搜索名称/描述"
+                                    @press-enter="handleSearch">
+                                        <template #prefix>
+                                                <SearchOutlined/>
+                                        </template>
+                                </a-input>
+                        </div>
+                        <div class="flex gap-2">
+                                <div class="search-filter-item flex items-center gap-1 rounded-md min-w-0 my-1">
+                                        <a-select
+                                            v-model:value="searchStatus"
+                                            allow-clear
+                                            placeholder="状态">
+                                                <a-select-option v-for="opt in statusFilterOptions" :key="opt.label"
+                                                                 :value="opt.value">{{ opt.label }}
+                                                </a-select-option>
+                                        </a-select>
+                                </div>
+                                <div class="search-filter-item flex items-center gap-1 rounded-md min-w-0 my-1">
+                                        <a-select
+                                            v-model:value="searchIsSystem"
+                                            allow-clear
+                                            placeholder="系统内置">
+                                                <a-select-option v-for="opt in isSystemFilterOptions" :key="opt.label"
+                                                                 :value="opt.value">{{ opt.label }}
+                                                </a-select-option>
+                                        </a-select>
+                                </div>
+                        </div>
+                        <div class="flex shrink-0 gap-2 w-full lg:w-auto justify-end">
+                                <a-button type="primary" @click="handleSearch">搜索</a-button>
+                                <a-button @click="handleReset">重置</a-button>
+                        </div>
+                </div>
+
+                <a-table
+                    :columns="columns"
+                    :data-source="tableData"
+                    :loading="loading"
+                    :pagination="paginationConfig"
+                    :scroll="{ x: 900 }"
+                    row-key="id"
+                    size="small"
+                    table-layout="fixed"
+                    @change="handleTableChange">
+                        <template #bodyCell="{ column, record }">
+                                <template v-if="column.key === 'operation'">
+                                        <template v-if="isBelowLg">
+                                                <a-dropdown>
+                                                        <a-button size="small" type="link">
+                                                                操作
+                                                                <DownOutlined/>
+                                                        </a-button>
+                                                        <template #overlay>
+                                                                <a-menu
+                                                                    @click="({key}) => handleActionClick(record, key)">
+                                                                        <a-menu-item key="view">查看</a-menu-item>
+                                                                        <a-menu-item key="permission">权限</a-menu-item>
+                                                                        <a-menu-item v-if="!record.isSystem" key="edit">
+                                                                                编辑
+                                                                        </a-menu-item>
+                                                                        <a-menu-item v-if="!record.isSystem"
+                                                                                     key="delete">
+                                                                                <span class="text-red-500">删除</span>
+                                                                        </a-menu-item>
+                                                                </a-menu>
+                                                        </template>
+                                                </a-dropdown>
+                                        </template>
+                                        <template v-else>
+                                                <a-space>
+                                                        <a-button size="small" type="link" @click="viewDetail(record)">
+                                                                查看
+                                                        </a-button>
+                                                        <a-button size="small" type="link"
+                                                                  @click="openPermissionDrawer(record)">
+                                                                权限
+                                                        </a-button>
+                                                        <a-button v-if="!record.isSystem" size="small" type="link"
+                                                                  @click="openEdit(record)">
+                                                                编辑
+                                                        </a-button>
+                                                        <a-popconfirm
+                                                            v-if="!record.isSystem"
+                                                            cancel-text="取消"
+                                                            ok-text="确定"
+                                                            title="确定删除该权限组吗？将级联删除权限-权限组、角色-权限组关联。"
+                                                            @confirm="onDelete(record)">
+                                                                <a-button danger size="small" type="link">
+                                                                        删除
+                                                                </a-button>
+                                                        </a-popconfirm>
+
+                                                </a-space>
+                                        </template>
+                                </template>
+                                <template v-else-if="column.key === 'status'">
+                                        <a-tag :bordered="false" :color="record.status === '启用' ? 'green' : 'red'">
+                                                {{ record.status }}
+                                        </a-tag>
+                                </template>
+                                <template v-else-if="column.key === 'isSystem'">
+                                        <a-tag :bordered="false" :color="record.isSystem ? 'blue' : 'default'">
+                                                {{ record.isSystem ? '系统内置' : '自定义' }}
+                                        </a-tag>
+                                </template>
+                        </template>
+                </a-table>
+
+                <!-- 查看权限组详情抽屉 -->
+                <a-drawer
+                    v-model:open="viewDrawerVisible"
+                    :destroy-on-close="true"
+                    :width="drawerWidth"
+                    title="权限组详情"
+                    @close="currentPermissionGroup = null">
+                        <template v-if="currentPermissionGroup">
+                                <div class="flex flex-col gap-1">
+                                        <span class="font-medium text-gray-900 text-sm">排序顺序：</span>
+                                        <span
+                                            class="text-gray-600 text-sm break-all">{{
+                                                        currentPermissionGroup?.order || '-'
+                                                }}</span>
+                                </div>
+                                <a-divider/>
+                                <div class="flex flex-col gap-1">
+                                        <span class="font-medium text-gray-900 text-sm">权限组名称：</span>
+                                        <span
+                                            class="text-gray-600 text-sm break-all">{{
+                                                        currentPermissionGroup?.name || '-'
+                                                }}</span>
+                                </div>
+                                <a-divider/>
+                                <div class="flex flex-col gap-1">
+                                        <span class="font-medium text-gray-900 text-sm">描述：</span>
+                                        <span
+                                            class="text-gray-600 text-sm break-all">{{
+                                                        currentPermissionGroup?.description || '-'
+                                                }}</span>
+                                </div>
+                                <a-divider/>
+                                <div class="flex flex-col gap-1">
+                                        <span class="font-medium text-gray-900 text-sm">更新时间：</span>
+                                        <span
+                                            class="text-gray-600 text-sm break-all">{{
+                                                        formatDate(currentPermissionGroup?.updateTime)
+                                                }}</span>
+                                </div>
+                                <a-divider/>
+                                <div class="flex flex-col gap-1">
+                                        <span class="font-medium text-gray-900 text-sm">创建时间：</span>
+                                        <span
+                                            class="text-gray-600 text-sm break-all">{{
+                                                        formatDate(currentPermissionGroup?.createTime)
+                                                }}</span>
+                                </div>
+                                <a-divider/>
+                                <div class="flex flex-col gap-1">
+                                        <span class="font-medium text-gray-900 text-sm">状态：</span>
+                                        <span
+                                            class="text-gray-600 text-sm break-all">
+                                                 {{ currentPermissionGroup?.status || '-' }}
+                                        </span>
+                                </div>
+                                <a-divider/>
+                                <div class="flex flex-col gap-1">
+                                        <span class="font-medium text-gray-900 text-sm">系统内置：</span>
+                                        <span
+                                            class="text-gray-600 text-sm break-all">{{
+                                                        currentPermissionGroup?.isSystem ? '是' : '否'
+                                                }}</span>
+                                </div>
+
+                        </template>
+                </a-drawer>
+
+                <!-- 编辑权限组弹窗 -->
+                <a-modal
+                    v-model:open="editVisible"
+                    :confirm-loading="editSubmitting"
+                    cancel-text="取消"
+                    ok-text="保存"
+                    title="编辑权限组"
+                    @afterClose="handleEditAfterClose"
+                    @cancel="handleEditCancel"
+                    @ok="submitEdit">
+                        <a-form v-if="editForm" :model="editForm" :rules="editRules" layout="vertical">
+                                <a-form-item label="权限组名称" name="name" required>
+                                        <a-input v-model:value="editForm.name" :maxlength="50"
+                                                 placeholder="权限组名称，最大 50 字符" show-count/>
+                                </a-form-item>
+                                <a-form-item label="描述" name="description">
+                                        <a-textarea v-model:value="editForm.description"
+                                                    :maxlength="200" :rows="3"
+                                                    placeholder="权限组描述，最大 200 字符（可选）" show-count/>
+                                </a-form-item>
+                                <a-form-item label="排序" name="sortOrder">
+                                        <a-input-number v-model:value="editForm.sortOrder" :min="0"
+                                                        placeholder="数字越大越靠前" style="width: 100%;"/>
+                                </a-form-item>
+                                <a-form-item label="状态" name="status">
+                                        <a-radio-group v-model:value="editForm.status">
+                                                <a-radio :value="1">启用</a-radio>
+                                                <a-radio :value="0">禁用</a-radio>
+                                        </a-radio-group>
+                                </a-form-item>
+                        </a-form>
+                        <div v-else class="text-center py-8 text-gray-500">
+                                加载中...
+                        </div>
+                </a-modal>
+
+                <!-- 新增权限组弹窗 -->
+                <a-modal
+                    v-model:open="createVisible"
+                    :confirm-loading="createSubmitting"
+                    cancel-text="取消"
+                    ok-text="创建"
+                    title="新增权限组"
+                    @afterClose="handleCreateAfterClose"
+                    @cancel="handleCreateCancel"
+                    @ok="submitCreate">
+                        <a-form v-if="createForm" :model="createForm" :rules="createRules" layout="vertical">
+                                <a-form-item label="权限组名称" name="name" required>
+                                        <a-input v-model:value="createForm.name" :maxlength="50"
+                                                 placeholder="权限组名称，最大 50 字符" show-count/>
+                                </a-form-item>
+                                <a-form-item label="描述" name="description">
+                                        <a-textarea v-model:value="createForm.description"
+                                                    :maxlength="200" :rows="3"
+                                                    placeholder="权限组描述，最大 200 字符（可选）" show-count/>
+                                </a-form-item>
+                                <a-form-item label="排序" name="sortOrder">
+                                        <a-input-number v-model:value="createForm.sortOrder" :min="0"
+                                                        placeholder="数字越大越靠前" style="width: 100%;"/>
+                                </a-form-item>
+                                <a-form-item label="状态" name="status">
+                                        <a-radio-group v-model:value="createForm.status">
+                                                <a-radio :value="1">启用</a-radio>
+                                                <a-radio :value="0">禁用</a-radio>
+                                        </a-radio-group>
+                                </a-form-item>
+                        </a-form>
+                        <div v-else class="text-center py-8 text-gray-500">
+                                加载中...
+                        </div>
+                </a-modal>
+
+                <!-- 关联权限抽屉 -->
+                <a-drawer
+                    v-model:open="permissionDrawerVisible"
+                    :destroy-on-close="true"
+                    :footer-style="{ textAlign: 'right' }"
+                    :width="drawerWidth"
+                    title="权限组关联权限"
+                    @close="onPermissionDrawerClose">
+                        <template v-if="selectedGroup">
+                                <div class="mb-4 text-gray-600 text-sm">{{ selectedGroup.name }}</div>
+                                <div class="flex items-center justify-between mb-2">
+                                        <span class="font-medium">已关联权限</span>
+                                        <a-button v-if="!selectedGroup.isSystem" size="small" type="primary"
+                                                  @click="showAddPermission = true">添加权限
+                                        </a-button>
+                                </div>
+                                <div class="overflow-x-auto">
+                                        <a-table
+                                            :columns="permissionTableColumns"
+                                            :data-source="permissionGroupStore.currentGroupPermissions"
+                                            :loading="permissionGroupStore.groupPermissionsLoading"
+                                            :pagination="false"
+                                            :scroll="{ x: 400 }"
+                                            row-key="id"
+                                            size="small"
+                                            table-layout="fixed">
+                                                <template #bodyCell="{ column, record }">
+                                                        <template v-if="column.key === 'action'">
+                                                                <a-popconfirm title="确定移除此权限？"
+                                                                              @confirm="removePermission(record.id)">
+                                                                        <a-button danger size="small" type="link">移除
+                                                                        </a-button>
+                                                                </a-popconfirm>
+                                                        </template>
+                                                </template>
+                                        </a-table>
+                                </div>
+                                <div
+                                    v-if="!permissionGroupStore.currentGroupPermissions.length && !permissionGroupStore.groupPermissionsLoading"
+                                    class="text-gray-400 text-sm py-2">没有权限查看
+                                </div>
+                        </template>
+                </a-drawer>
+
+                <!-- 添加权限弹窗（树形选择） -->
+                <a-modal
+                    v-model:open="showAddPermission"
+                    :confirm-loading="addPermissionLoading"
+                    ok-text="添加"
+                    title="添加权限"
+                    width="400px"
+                    @cancel="selectedPermissionId = null"
+                    @ok="doAddPermission">
+                        <div class="mb-2 text-xs text-gray-500">选择权限：</div>
+                        <a-tree-select
+                            v-model:value="selectedPermissionId"
+                            :field-names="{ children: 'children', label: 'name', value: 'id' }"
+                            :tree-data="permissionTreeData"
+                            placeholder="请选择要添加的权限"
+                            show-search
+                            style="width: 100%;"
+                            tree-node-filter-prop="name"/>
+                        <div class="mt-2 text-xs text-gray-500">
+                                最好是添加父权限，除非你是有特殊需求需要单独给予按钮级别的权限。
+                        </div>
+                </a-modal>
+        </a-card>
+</template>
+
+<script setup>
+
+import {computed, h, onMounted, ref, watch} from 'vue';
+import {DownOutlined, SearchOutlined} from '@ant-design/icons-vue';
+import {message, Modal} from 'ant-design-vue';
+import {useDrawerWidth} from '../../../utils/useDrawerWidth.js';
+import {usePermissionGroupStore} from '../../../stores/permissiongroup.js';
+import {usePermissionStore} from '../../../stores/permission.js';
+import {formatDate} from '../../../utils/formatDate.js';
+import {buildPermissionTree} from '../../../utils/permissionTree.js';
+import logger from '../../../utils/logger.js';
+
+const permissionGroupStore = usePermissionGroupStore();
+const permissionStore = usePermissionStore();
+
+const {drawerWidth} = useDrawerWidth();
+
+// LG断点检测（1024px）
+const isBelowLg = ref(window.innerWidth < 1024);
+if (typeof window !== 'undefined') {
+        const handleResize = () => {
+                isBelowLg.value = window.innerWidth < 1024;
+        };
+        window.addEventListener('resize', handleResize);
+}
+
+const permissionOptionsLoading = ref(false);
+const permissionOptions = ref([]);
+// 权限树形数据
+const permissionTreeData = ref([]);
+
+const tableData = computed(() => permissionGroupStore.currentPermissionGroups);
+const loading = computed(() => permissionGroupStore.loading);
+const paginationConfig = computed(() => ({
+        current: permissionGroupStore.pagination.current,
+        pageSize: permissionGroupStore.pagination.pageSize,
+        total: permissionGroupStore.pagination.total,
+        showSizeChanger: true,
+        showTotal: (total) => `共 ${total} 条`
+}));
+
+// 搜索与筛选（'' 表示不传该筛选）
+const searchKeyword = ref('');
+const searchStatus = ref(undefined);
+const searchIsSystem = ref(undefined);
+
+/** 状态下拉选项：来自接口或默认 */
+const statusFilterOptions = computed(() => {
+        const fromApi = permissionGroupStore.filterOptions?.status;
+        return fromApi && fromApi.length > 0 ? fromApi : [{value: 0, label: '禁用'}, {value: 1, label: '启用'}];
+});
+/** 是否系统内置下拉选项：来自接口或默认 */
+const isSystemFilterOptions = computed(() => {
+        const fromApi = permissionGroupStore.filterOptions?.isSystem;
+        return fromApi && fromApi.length > 0 ? fromApi : [{value: 0, label: '否'}, {value: 1, label: '是'}];
+});
+
+const columns = computed(() => [
+        {title: '排序顺序', dataIndex: 'order', key: 'order', width: 100},
+        {title: '权限组名称', dataIndex: 'name', key: 'name', width: 160},
+        {title: '权限组描述', dataIndex: 'description', key: 'description', width: 220, ellipsis: true},
+        {title: '状态', dataIndex: 'status', key: 'status', width: 90},
+        {title: '系统内置', dataIndex: 'isSystem', key: 'isSystem', width: 100},
+        {title: '操作', key: 'operation', fixed: 'right', width: isBelowLg.value ? 100 : 200}
+]);
+
+// 关联权限表格列（非系统内置显示操作列）
+const permissionTableColumns = computed(() => {
+        const cols = [
+                {title: '权限编码', dataIndex: 'code', key: 'code', width: 150, ellipsis: true},
+                {title: '权限名称', dataIndex: 'name', key: 'name', width: 150, ellipsis: true}
+        ];
+
+        if (selectedGroup.value && !selectedGroup.value.isSystem) {
+                cols.push({title: '操作', key: 'action', width: 80});
+        }
+
+        return cols;
+});
+
+const viewDrawerVisible = ref(false);
+const currentPermissionGroup = ref(null);
+const editVisible = ref(false);
+const editSubmitting = ref(false);
+const editForm = ref(null);
+// 编辑表单验证规则（与文档一致：name 必填最大 50 字符，description 可选最大 200 字符）
+const editRules = {
+        name: [
+                {required: true, message: '请输入权限组名称'},
+                {max: 50, message: '权限组名称不能超过 50 个字符'}
+        ],
+        description: [
+                {max: 200, message: '权限组描述不能超过 200 个字符'}
+        ]
+};
+const permissionDrawerVisible = ref(false);
+const selectedGroup = ref(null);
+const showAddPermission = ref(false);
+const selectedPermissionId = ref(null);
+const addPermissionLoading = ref(false);
+
+// 新增权限组相关
+const createVisible = ref(false);
+const createSubmitting = ref(false);
+const createForm = ref(null);
+// 创建表单验证规则
+const createRules = {
+        name: [
+                {required: true, message: '请输入权限组名称'},
+                {max: 50, message: '权限组名称不能超过 50 个字符'}
+        ],
+        description: [
+                {max: 200, message: '权限组描述不能超过 200 个字符'}
+        ]
+};
+
+/** 加载权限组列表（带分页与 keyword/status/isSystem） */
+// 辅助函数：检查值是否有效（非null且非空字符串）
+const isValidValue = (value) => value != null && value !== '';
+
+function loadTableData() {
+        // 使用辅助函数简化逻辑
+        const statusParam = isValidValue(searchStatus.value) ? searchStatus.value : undefined;
+        const isSystemParam = isValidValue(searchIsSystem.value) ? searchIsSystem.value : undefined;
+
+        permissionGroupStore.fetchPermissionGroups({
+                currentPage: permissionGroupStore.pagination.current,
+                pageSize: permissionGroupStore.pagination.pageSize,
+                keyword: searchKeyword.value?.trim() || undefined,
+                status: statusParam,
+                isSystem: isSystemParam
+        }).catch((e) => {
+                message.error(e?.message || '加载权限组列表失败');
+        });
+}
+
+function handleTableChange(pagination) {
+        permissionGroupStore.updatePagination({current: pagination.current, pageSize: pagination.pageSize});
+        loadTableData();
+}
+
+/** 搜索：写入 store 并回第一页 */
+function handleSearch() {
+        permissionGroupStore.updatePagination({current: 1});
+        permissionGroupStore.updateQueryParams({
+                keyword: searchKeyword.value?.trim() ?? '',
+                status: isValidValue(searchStatus.value) ? searchStatus.value : undefined,
+                isSystem: isValidValue(searchIsSystem.value) ? searchIsSystem.value : undefined
+        });
+        loadTableData();
+}
+
+/** 重置：清空条件并刷新 */
+function handleReset() {
+        searchKeyword.value = '';
+        searchStatus.value = undefined;
+        searchIsSystem.value = undefined;
+        permissionGroupStore.updatePagination({current: 1});
+        permissionGroupStore.updateQueryParams({keyword: '', status: undefined, isSystem: undefined});
+        loadTableData();
+}
+
+function viewDetail(record) {
+        currentPermissionGroup.value = record;
+        viewDrawerVisible.value = true;
+}
+
+/**
+ * 处理移动端操作列点击
+ * @param {Object} record - 记录
+ * @param {string} key - 菜单项key
+ */
+function handleActionClick(record, key) {
+        if (key === 'view') {
+                viewDetail(record);
+        } else if (key === 'permission') {
+                openPermissionDrawer(record);
+        } else if (key === 'edit') {
+                openEdit(record);
+        } else if (key === 'delete') {
+                Modal.confirm({
+                        title: () => h('span', {style: {fontWeight: 'normal'}}, '确定删除该权限组吗？将级联删除权限-权限组、角色-权限组关联。'),
+                        cancelText: '取消',
+                        okText: '确定',
+                        onOk: () => onDelete(record)
+                });
+        }
+}
+
+function openEdit(record) {
+        // 系统内置权限组不可编辑
+        if (record.isSystem) {
+                message.warning('系统内置权限组不可修改');
+        } else {
+                editForm.value = {
+                        id: record.id,
+                        name: record.name,
+                        description: record.description ?? '',
+                        sortOrder: record.sortOrder ?? record.order ?? 0,
+                        status: record.statusValue ?? (record.status === '启用' ? 1 : 0)
+                };
+                editVisible.value = true;
+        }
+}
+
+// 验证编辑表单
+function validateEditForm() {
+        let result = {isValid: true, errorMessage: ''};
+
+        if (!editForm.value?.name || !editForm.value.name.trim()) {
+                result = {isValid: false, errorMessage: '请填写权限组名称'};
+        } else if (editForm.value.name.length > 50) {
+                result = {isValid: false, errorMessage: '权限组名称不能超过 50 个字符'};
+        } else if (editForm.value.description && editForm.value.description.length > 200) {
+                result = {isValid: false, errorMessage: '权限组描述不能超过 200 个字符'};
+        }
+
+        return result;
+}
+
+async function submitEdit() {
+        let result = false;
+
+        const validation = validateEditForm();
+
+        if (!validation.isValid) {
+                message.warning(validation.errorMessage);
+        } else {
+                editSubmitting.value = true;
+                try {
+                        await permissionGroupStore.updatePermissionGroup(editForm.value.id, {
+                                name: editForm.value.name.trim(),
+                                description: editForm.value.description?.trim() || '',
+                                sortOrder: editForm.value.sortOrder ?? 0,
+                                status: editForm.value.status ?? 1
+                        });
+                        message.success('保存成功');
+                        editVisible.value = false;
+                        editForm.value = null;
+                        loadTableData();
+                        result = true;
+                } catch (e) {
+                        message.error(e?.message || '保存失败');
+                } finally {
+                        editSubmitting.value = false;
+                }
+        }
+
+        return result;
+}
+
+async function onDelete(record) {
+        let result = false;
+
+        if (record.isSystem) {
+                message.warning('系统内置权限组不可删除');
+        } else {
+                try {
+                        await permissionGroupStore.deletePermissionGroup(record.id);
+                        message.success('删除成功');
+                        loadTableData();
+                        result = true;
+                } catch (e) {
+                        message.error(e?.message || '删除失败');
+                }
+        }
+
+        return result;
+}
+
+function openPermissionDrawer(record) {
+        selectedGroup.value = record;
+        permissionDrawerVisible.value = true;
+        permissionGroupStore.fetchGroupPermissions(record.id).catch((e) => {
+                message.error(e?.message || '加载关联权限失败');
+        });
+}
+
+// 打开新增权限组弹窗
+function openCreate() {
+        createForm.value = {
+                name: '',
+                description: '',
+                sortOrder: 0,
+                status: 1
+        };
+        createVisible.value = true;
+}
+
+// 验证创建表单
+function validateCreateForm() {
+        let isValid = true;
+        let errorMessage = '';
+
+        if (!createForm.value?.name || !createForm.value.name.trim()) {
+                isValid = false;
+                errorMessage = '请填写权限组名称';
+        } else if (createForm.value.name.length > 50) {
+                // 名称长度限制：最大 50 字符
+                isValid = false;
+                errorMessage = '权限组名称不能超过 50 个字符';
+        } else if (createForm.value.description && createForm.value.description.length > 200) {
+                // 描述长度限制：最大 200 字符
+                isValid = false;
+                errorMessage = '权限组描述不能超过 200 个字符';
+        }
+
+        return {isValid, errorMessage};
+}
+
+// 提交创建权限组
+async function submitCreate() {
+        const validation = validateCreateForm();
+        let shouldProceed = validation.isValid;
+
+        if (!shouldProceed) {
+                message.warning(validation.errorMessage);
+        } else {
+                createSubmitting.value = true;
+                try {
+                        await permissionGroupStore.createPermissionGroup({
+                                name: createForm.value.name.trim(),
+                                description: createForm.value.description?.trim() || '',
+                                sortOrder: createForm.value.sortOrder ?? 0,
+                                status: createForm.value.status ?? 1
+                        });
+                        message.success('创建成功');
+                        createVisible.value = false;
+                        createForm.value = null;
+                        loadTableData();
+                } catch (e) {
+                        message.error(e?.message || '创建失败');
+                        shouldProceed = false;
+                } finally {
+                        createSubmitting.value = false;
+                }
+        }
+
+        return shouldProceed;
+}
+
+function onPermissionDrawerClose() {
+        selectedGroup.value = null;
+        showAddPermission.value = false;
+        selectedPermissionId.value = null;
+}
+
+// 编辑权限组弹窗取消处理
+function handleEditCancel() {
+        editVisible.value = false;
+}
+
+// 编辑权限组弹窗完全关闭后的处理
+function handleEditAfterClose() {
+        editForm.value = null;
+}
+
+// 新增权限组弹窗取消处理
+function handleCreateCancel() {
+        createVisible.value = false;
+}
+
+// 新增权限组弹窗完全关闭后的处理
+function handleCreateAfterClose() {
+        createForm.value = null;
+}
+
+watch(showAddPermission, (open) => {
+        if (open) {
+                selectedPermissionId.value = null;
+                permissionOptionsLoading.value = true;
+                permissionStore.fetchPermissions({currentPage: 1, pageSize: 500}).then(() => {
+                        permissionOptions.value = permissionStore.currentPermissions || [];
+                        // 构建权限树
+                        permissionTreeData.value = buildPermissionTree(permissionOptions.value);
+                }).catch((e) => {
+                        logger.error(e);
+                        message.error('加载权限列表失败');
+                }).finally(() => {
+                        permissionOptionsLoading.value = false;
+                });
+        }
+});
+
+async function doAddPermission() {
+        let canAdd = true;
+
+        if (!selectedPermissionId.value || !selectedGroup.value) {
+                message.warning('请选择要添加的权限');
+                canAdd = false;
+        } else if (selectedGroup.value.isSystem) {
+                // 系统内置权限组不可添加权限（虽然按钮已隐藏，但这里再加一层保护）
+                message.warning('系统内置权限组不可修改');
+                canAdd = false;
+        } else {
+                addPermissionLoading.value = true;
+                try {
+                        const result = await permissionGroupStore.addPermissionToGroup(selectedGroup.value.id, selectedPermissionId.value);
+                        logger.log('Store返回结果:', result);
+                        logger.log('结果类型:', typeof result);
+
+                        if (result === true) {
+                                logger.log('添加成功');
+                                message.success('添加成功');
+                                showAddPermission.value = false;
+                                selectedPermissionId.value = null;
+                                await permissionGroupStore.fetchGroupPermissions(selectedGroup.value.id);
+                        } else if (result && typeof result === 'object' && result.success === false) {
+                                // Store方法返回错误对象，显示具体的错误信息
+                                message.error(result.message || '添加权限失败');
+
+                                canAdd = false;
+                        } else {
+                                // 其他失败情况
+                                message.error('添加权限失败');
+                                canAdd = false;
+                        }
+                } catch (e) {
+                        message.error(e?.message || '添加失败');
+                        canAdd = false;
+                } finally {
+                        logger.log('设置loading为false');
+                        addPermissionLoading.value = false;
+                }
+        }
+        return canAdd;
+}
+
+async function removePermission(permissionId) {
+        let canRemove = true;
+
+        if (!selectedGroup.value) {
+                canRemove = false;
+        } else if (selectedGroup.value.isSystem) {
+                // 系统内置权限组不可移除权限（虽然按钮已隐藏，但这里再加一层保护）
+                message.warning('系统内置权限组不可修改');
+                canRemove = false;
+        } else {
+                try {
+                        const result = await permissionGroupStore.removePermissionFromGroup(selectedGroup.value.id, permissionId);
+                        if (result === true) {
+                                message.success('已移除');
+                                await permissionGroupStore.fetchGroupPermissions(selectedGroup.value.id);
+                        } else if (result && typeof result === 'object' && result.success === false) {
+                                // Store方法返回错误对象，显示具体的错误信息
+                                message.error(result.message || '移除权限失败');
+                        } else {
+                                // 其他失败情况
+                                message.error('移除权限失败');
+                        }
+                } catch (e) {
+                        message.error(e?.message || '移除失败');
+                }
+        }
+
+        return canRemove;
+}
+
+onMounted(() => {
+        loadTableData();
+});
+</script>

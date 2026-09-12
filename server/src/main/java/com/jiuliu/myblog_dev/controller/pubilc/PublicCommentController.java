@@ -1,0 +1,124 @@
+/*
+ * [PublicCommentController.java]
+ * =======================================
+ * This software is licensed under the MIT License.
+ * However, any distribution or modification must retain this copyright notice.
+ * See LICENSE for full terms.
+ * =======================================
+ * author: "Jiu Liu"
+ * author_contact: "QQ: 3209174373, GitHub: https://github.com/DCSCDF
+ * license: "MIT"
+ * license_exception: "Mandatory attribution retention"
+ * UpdateTime: 2026/3/24
+ */
+
+package com.jiuliu.myblog_dev.controller.pubilc;
+
+import cn.dev33.satoken.stp.StpUtil;
+import cn.dev33.satoken.util.SaResult;
+import com.jiuliu.myblog_dev.dto.Response;
+import com.jiuliu.myblog_dev.dto.comment.PublicCommentCreateDTO;
+import com.jiuliu.myblog_dev.dto.comment.PublicCommentResponseDTO;
+import com.jiuliu.myblog_dev.service.comment.PublicCommentService;
+import com.jiuliu.myblog_dev.utils.rateLimit.RateLimit;
+import com.jiuliu.myblog_dev.utils.response.ResponseUtil;
+import com.jiuliu.myblog_dev.utils.security.ClientIpUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/**
+ * 公共评论接口 - 无需登录即可访问
+ */
+@RestController
+@RequestMapping("/api/public/comment")
+public class PublicCommentController {
+
+    private static final Logger log = LoggerFactory.getLogger(PublicCommentController.class);
+
+    private final PublicCommentService publicCommentService;
+    private final ClientIpUtil clientIpUtil;
+
+    public PublicCommentController(PublicCommentService publicCommentService, ClientIpUtil clientIpUtil) {
+        this.publicCommentService = publicCommentService;
+        this.clientIpUtil = clientIpUtil;
+    }
+
+    /**
+     * 通用方法：处理SaResult结果
+     */
+    private <T> Response<T> handleSaResult(SaResult saResult) {
+        if (saResult.getCode() == 200) {
+            @SuppressWarnings("unchecked")
+            T data = (T) saResult.getData();
+            return ResponseUtil.success(data, 200);
+        }
+        return ResponseUtil.fail(saResult.getMsg(), saResult.getCode());
+    }
+
+    /**
+     * 获取客户端IP地址（仅信任可信代理来源的转发头，防止伪造）
+     */
+    private String getClientIpAddress(HttpServletRequest request) {
+        return clientIpUtil.getClientIp(request);
+    }
+
+    /**
+     * 提交公共评论
+     * POST /api/public/comment
+     * 无需登录，所有用户均可访问
+     * 已登录用户使用用户表信息，游客使用传入的信息
+     * 限流：每个IP每分钟最多提交4次
+     */
+    @RateLimit(count = 4, period = 1, prefix = "public_comment_create")
+    @PostMapping
+    public Response<Object> createComment(@Valid @RequestBody PublicCommentCreateDTO dto,
+                                          HttpServletRequest request) {
+        // 获取客户端信息
+        String ipAddress = getClientIpAddress(request);
+        String deviceInfo = request.getHeader("User-Agent");
+
+        // 检查用户登录状态
+        boolean isLogin = StpUtil.isLogin();
+        Long userId = null;
+        boolean isAdmin = false;
+
+        if (isLogin) {
+            try {
+                userId = StpUtil.getLoginIdAsLong();
+                // 检查是否为管理员（拥有任意系统管理权限即视为管理员）
+                isAdmin = StpUtil.hasPermission("admin:login")
+                        || StpUtil.hasPermission("system:user:list")
+                        || StpUtil.hasPermission("system:blog:list");
+            } catch (Exception e) {
+                log.warn("获取登录用户信息失败", e);
+                isLogin = false;
+            }
+        }
+
+        SaResult saResult = publicCommentService.createComment(dto, ipAddress, deviceInfo, isLogin, userId, isAdmin);
+        return handleSaResult(saResult);
+    }
+
+    /**
+     * 获取文章的所有评论
+     * GET /api/public/comment/list/{blogId}
+     * 无需登录，所有用户均可访问
+     * 只返回 status=1 且未删除的评论
+     * 如果评论有有效的 parent_id 且对应用户存在，则显示用户表信息
+     */
+    @GetMapping("/list/{blogId}")
+    public Response<List<PublicCommentResponseDTO>> getComments(@PathVariable Long blogId) {
+        List<PublicCommentResponseDTO> comments = publicCommentService.getCommentsByBlogId(blogId);
+        return ResponseUtil.success(comments, 200);
+    }
+}
