@@ -1,21 +1,27 @@
-﻿# myBlog
+# myBlog · kyrie114
 
-基于 [DCSCDF (Kowalski)](https://github.com/DCSCDF) 开源个人博客项目整理而来的本地副本（**未使用 git clone**，从源码压缩包导入，无独立提交历史）。
+tom kyrie（GitHub [kyrie114](https://github.com/kyrie114)）的个人博客栈。
 
-## 目录结构
+## 内容结构
 
-| 目录 | 来源仓库 | 说明 |
-|------|----------|------|
-| `frontend/` | [DCSCDF/MyBLOG_WEB](https://github.com/DCSCDF/MyBLOG_WEB) | 博客前台（Vue） |
-| `admin/` | [DCSCDF/MyBLOG_WebAdmin](https://github.com/DCSCDF/MyBLOG_WebAdmin) | 后台管理（Vue） |
-| `server/` | [DCSCDF/MyBLOG_SERVER](https://github.com/DCSCDF/MyBLOG_SERVER) | 后端（Spring Boot / Java） |
+站点栏目 **「个人分享」** 下同时分享两条学习线（并列，不分主辅）：
 
-## 许可与致谢
+1. **AI工程从零** — 环境、工具、线性代数直觉等工程向笔记  
+2. **矩阵方法跟读** — 刘笑嶂《机器学习的矩阵方法》跟读笔记（PCA 等）
 
-上游项目版权归原作者所有。`admin`、`server` 上游声明为 MIT License，请保留各子目录内原有 LICENSE / 说明文件。
+文风：教学向、干货短打；公式完整但用人话解释。
 
-感谢原作者开源：https://github.com/DCSCDF
+草稿提纲见 `content/drafts/`，可之后在后台发成正式文章。
 
-## 本地说明
+## 目录
 
-各子项目请分别按各自 README 安装依赖与启动（前台 / 管理端通常 `npm install`，后端按 Spring Boot 方式运行）。
+| 目录 | 说明 |
+|------|------|
+| `frontend/` | 博客前台（Nuxt / Vue） |
+| `admin/` | 后台管理 |
+| `server/` | Spring Boot 后端 |
+| `content/drafts/` | 个人分享选题草稿 |
+
+## 上游致谢
+
+代码基于 [DCSCDF](https://github.com/DCSCDF) 开源 MyBLOG（WEB / WebAdmin / SERVER）整理导入，非 git clone。请保留各子项目原有 LICENSE 与版权声明。

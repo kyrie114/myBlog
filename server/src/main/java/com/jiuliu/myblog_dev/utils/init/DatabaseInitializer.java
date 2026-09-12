@@ -407,9 +407,9 @@ public class DatabaseInitializer implements CommandLineRunner {
     private void initDefaultConfigs() {
         log.info("初始化默认配置...");
 
-        insertOrUpdateConfig("site.name", "我的博客", "string", "max_length=100", "网站名称", 1);
+        insertOrUpdateConfig("site.name", "kyrie114 的博客", "string", "max_length=100", "网站名称", 1);
         insertOrUpdateConfig("site.domain", "localhost:8080", "string", "max_length=100", "网站域名", 1);
-        insertOrUpdateConfig("site.description", "一个简洁的个人博客系统", "text", null, "网站描述", 1);
+        insertOrUpdateConfig("site.description", "个人分享：AI工程从零 × 矩阵方法跟读", "text", null, "网站描述", 1);
         insertOrUpdateConfig("site.icp", "", "string", "max_length=50", "网站备案号", 1);
         insertOrUpdateConfig("user_register_default_role", "USER", "string", "required", "用户注册时默认分配的角色编码", 0);
 
@@ -464,11 +464,11 @@ public class DatabaseInitializer implements CommandLineRunner {
         log.info("初始化默认SEO配置...");
 
         insertOrUpdateSeoConfig("home",
-                "myblog - 记录技术与生活的点滴",
-                "博客,技术博客,个人博客,技术分享,编程,开发",
-                "我的个人博客，分享技术心得、生活感悟和编程经验",
-                "我的博客 - 记录技术与生活的点滴",
-                "我的个人博客，分享技术心得、生活感悟和编程经验",
+                "kyrie114 的博客 - 个人分享",
+                "博客,AI工程从零,矩阵方法,个人分享,学习笔记",
+                "个人分享栏目：AI工程从零与矩阵方法跟读",
+                "kyrie114 的博客 - 个人分享",
+                "个人分享栏目：AI工程从零与矩阵方法跟读",
                 "website");
 
         insertOrUpdateSeoConfig("article",

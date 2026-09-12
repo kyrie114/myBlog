@@ -18,9 +18,9 @@ export const useSiteStore = defineStore('site', {
 	}),
 
 	getters: {
-		siteName: (state) => state.siteInfo?.siteName || '我的博客',
+		siteName: (state) => state.siteInfo?.siteName || 'kyrie114 的博客',
 		siteDomain: (state) => state.siteInfo?.siteDomain || '',
-		siteDescription: (state) => state.siteInfo?.siteDescription || '',
+		siteDescription: (state) => state.siteInfo?.siteDescription || '个人分享：AI工程从零 × 矩阵方法跟读',
 		recordNumber: (state) => state.siteInfo?.recordNumber || '',
 	},
 

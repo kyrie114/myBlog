@@ -4,8 +4,16 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   modules: ['@nuxtjs/tailwindcss', '@ant-design-vue/nuxt', '@pinia/nuxt'],
-  
-  // 运行时配置
+
+  app: {
+    head: {
+      title: 'kyrie114 的博客',
+      meta: [
+        { name: 'description', content: '个人分享：AI工程从零 × 矩阵方法跟读' }
+      ]
+    }
+  },
+
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || '',
@@ -13,10 +21,8 @@ export default defineNuxtConfig({
     }
   },
 
-  // SSR 配置
   ssr: true,
 
-  // Vite 开发服务器代理配置（仅开发环境生效）
   vite: {
     server: {
       proxy: {
@@ -29,7 +35,6 @@ export default defineNuxtConfig({
     }
   },
 
-  // Nitro 配置
   nitro: {
     preset: 'node-server'
   }
