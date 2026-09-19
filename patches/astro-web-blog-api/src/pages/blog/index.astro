@@ -1,0 +1,132 @@
+---
+import SectionArchivePage from "../../components/content/SectionArchivePage.astro";
+import { site } from "../../config/site";
+import {
+  fetchArticleList,
+  fetchCategoryList,
+  normalizeTags,
+} from "../../lib/myblog-api";
+import {
+  formatContentDate,
+  getContentYear,
+  toContentIsoString,
+} from "../../utils/content-time-zone";
+import { buildSectionTags, type SectionTag } from "../../utils/content-tags";
+
+export const prerender = false;
+
+interface ArchiveArticleItem {
+  createdAt: Date;
+  createdLabel: string;
+  href: string;
+  title: string;
+  year: string;
+}
+
+const categoryIdParam = Astro.url.searchParams.get("categoryId");
+const keyword = Astro.url.searchParams.get("keyword")?.trim() || undefined;
+const categoryId =
+  categoryIdParam && /^\d+$/.test(categoryIdParam)
+    ? Number(categoryIdParam)
+    : undefined;
+
+let listError: string | null = null;
+let archiveArticles: ArchiveArticleItem[] = [];
+let taxonomyTags: SectionTag[] = [];
+let activeTagSlug: string | undefined =
+  categoryId != null ? String(categoryId) : undefined;
+
+try {
+  const [page, categories] = await Promise.all([
+    fetchArticleList({
+      currentPage: 1,
+      pageSize: 100,
+      keyword,
+      categoryId,
+    }),
+    fetchCategoryList().catch(() => []),
+  ]);
+
+  archiveArticles = (page.records ?? [])
+    .map((item) => {
+      const createdAt = new Date(item.createTime);
+      if (Number.isNaN(createdAt.getTime())) return null;
+      return {
+        createdAt,
+        createdLabel: formatContentDate(createdAt),
+        href: `/blog/${item.id}/`,
+        title: item.title || `Article #${item.id}`,
+        year: getContentYear(createdAt),
+      } satisfies ArchiveArticleItem;
+    })
+    .filter((item): item is ArchiveArticleItem => item !== null)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  if (categories.length > 0) {
+    taxonomyTags = categories.map((cat) => ({
+      label: cat.name,
+      slug: String(cat.id),
+      count: (page.records ?? []).filter((r) => r.categoryId === cat.id)
+        .length,
+      href: `/blog/?categoryId=${cat.id}`,
+    }));
+  } else {
+    taxonomyTags = buildSectionTags(
+      "blog",
+      (page.records ?? []).map((item) => ({
+        id: String(item.id),
+        tags: normalizeTags(item.tags),
+      })),
+    );
+  }
+} catch (error) {
+  listError = error instanceof Error ? error.message : String(error);
+  console.error("[blog/index] MyBLOG API list failed:", listError);
+}
+
+const yearGroups = archiveArticles.reduce<
+  Array<{ articles: ArchiveArticleItem[]; year: string }>
+>((groups, article) => {
+  const currentGroup = groups[groups.length - 1];
+  if (currentGroup?.year === article.year) {
+    currentGroup.articles.push(article);
+    return groups;
+  }
+  groups.push({ year: article.year, articles: [article] });
+  return groups;
+}, []);
+
+const pageLabel = "All Blogs";
+const activityEntries = archiveArticles.map((article) => ({
+  date: toContentIsoString(article.createdAt),
+  dateLabel: article.createdLabel,
+  href: article.href,
+  title: article.title,
+}));
+const seoTitle = `${pageLabel} - ${site.site.name}`;
+const seoDescription = listError
+  ? "Blog list temporarily unavailable."
+  : "Browse blog posts from MyBLOG.";
+---
+
+<SectionArchivePage
+  activityEntries={activityEntries}
+  pageLabel={pageLabel}
+  title={seoTitle}
+  description={seoDescription}
+  ogTitle={pageLabel}
+  taxonomyTags={taxonomyTags}
+  activeTagSlug={activeTagSlug}
+  yearGroups={yearGroups}
+/>
+
+{
+  listError && (
+    <p
+      class="content-toc-empty"
+      style="max-width: 40rem; margin: 1rem auto; padding: 0 1rem;"
+    >
+      Failed to load articles from API: {listError}
+    </p>
+  )
+}
