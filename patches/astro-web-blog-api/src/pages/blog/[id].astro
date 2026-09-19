@@ -1,0 +1,103 @@
+---
+import ArticleDetailPage from "../../components/content/ArticleDetailPage.astro";
+import ApiMarkdownContent from "../../components/content/ApiMarkdownContent.astro";
+import { site } from "../../config/site";
+import { fetchArticleById, normalizeTags } from "../../lib/myblog-api";
+import { renderMarkdownContent } from "../../lib/render-markdown";
+import {
+  formatContentDateTime,
+  toContentIsoString,
+} from "../../utils/content-time-zone";
+import { normalizeContentTags } from "../../utils/content-tags";
+import { countContentWords } from "../../utils/content-word-count";
+import { getWalineServerURL } from "../../utils/waline-server-url";
+import {
+  resolveContentImage,
+  resolveSocialImageSrc,
+} from "../../utils/content-image";
+
+export const prerender = false;
+
+const { id } = Astro.params;
+
+if (!id || !/^\d+$/.test(id)) {
+  return new Response(null, { status: 404, statusText: "Not found" });
+}
+
+let article;
+try {
+  article = await fetchArticleById(id);
+} catch (error) {
+  console.error("[blog/id] MyBLOG API detail failed:", error);
+  return new Response(null, { status: 404, statusText: "Not found" });
+}
+
+const mdSource = article.mdContent ?? "";
+const { html, headings } = await renderMarkdownContent(mdSource);
+Astro.locals.myBlogMarkdownHtml = html;
+
+const title = article.title?.trim() || `Article #${article.id}`;
+const description =
+  mdSource
+    .replace(/^#+\s.*$/gm, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160) || site.site.description;
+const articleType = article.categoryName?.trim() || "Blog";
+const articleTags = normalizeContentTags(normalizeTags(article.tags));
+const author = article.authorNickname?.trim() || site.profile.name;
+const walineServerURL = getWalineServerURL();
+const articleRoutePath = `/blog/${article.id}/`;
+const createdAt = new Date(article.createTime);
+const createdAtValid = !Number.isNaN(createdAt.getTime()) ? createdAt : null;
+const formatDateTime = (value: Date | null) => {
+  if (!value) return "Unknown";
+  return formatContentDateTime(value);
+};
+const articleWordCount = countContentWords(mdSource);
+const includeKatexStyles =
+  /\$\$|\\\[|\\\(|\\begin\{|(^|[^$])\$[^$\n]+\$(?!\$)/m.test(mdSource);
+const canonicalUrl = new URL(articleRoutePath, site.site.url).toString();
+const scrapedImage = resolveContentImage(mdSource, undefined, site.site.iconSrc);
+const socialImage =
+  (await resolveSocialImageSrc(scrapedImage, `src/content/blog/${article.id}.md`)) ||
+  site.site.iconSrc;
+const imageUrl = new URL(socialImage, site.site.url).toString();
+const createdAtIso = createdAtValid ? toContentIsoString(createdAtValid) : "";
+const tocHeadings = headings
+  .filter((heading) => heading.depth >= 1 && heading.depth <= 5)
+  .map((heading) => ({
+    depth: heading.depth as 1 | 2 | 3 | 4 | 5,
+    slug: heading.slug,
+    text: heading.text,
+  }));
+---
+
+<ArticleDetailPage
+  section="blog"
+  title={title}
+  description={description}
+  articleType={articleType}
+  author={author}
+  articleRoutePath={articleRoutePath}
+  walineServerURL={walineServerURL}
+  createdLabel={formatDateTime(createdAtValid)}
+  updatedLabel={formatDateTime(createdAtValid)}
+  createdAtIso={createdAtIso}
+  updatedAtIso={createdAtIso}
+  articleWordCount={articleWordCount}
+  previousArticle={null}
+  nextArticle={null}
+  tocHeadings={tocHeadings}
+  ArticleContent={ApiMarkdownContent}
+  canonicalUrl={canonicalUrl}
+  imageUrl={imageUrl}
+  projectUrl=""
+  docUrl=""
+  tags={articleTags.map((tag) => ({
+    ...tag,
+    href: `/blog/tag/${tag.slug}/`,
+  }))}
+  siteName={site.site.name}
+  includeKatexStyles={includeKatexStyles}
+/>
