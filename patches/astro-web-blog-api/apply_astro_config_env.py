@@ -24,7 +24,7 @@ insert = """      CODETIME_TOKEN: envField.string({
         optional: true,
       }),
       PUBLIC_MYBLOG_API_BASE: envField.string({
-        context: "client",
+        context: "server",
         access: "public",
         optional: true,
         default: "http://127.0.0.1:8088",
@@ -33,14 +33,13 @@ insert = """      CODETIME_TOKEN: envField.string({
   },"""
 
 if needle not in text:
-    # fallback: insert before closing of env.schema
     m = re.search(r"(env:\s*\{\s*schema:\s*\{)([\s\S]*?)(\n\s*\},)", text)
     if not m:
         print("ERROR: could not locate env.schema in", TARGET)
         raise SystemExit(1)
     field = """
       PUBLIC_MYBLOG_API_BASE: envField.string({
-        context: "client",
+        context: "server",
         access: "public",
         optional: true,
         default: "http://127.0.0.1:8088",
