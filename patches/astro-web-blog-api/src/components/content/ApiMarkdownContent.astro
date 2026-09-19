@@ -1,0 +1,12 @@
+---
+/**
+ * Request-scoped HTML body for ArticleDetailPage / DocumentDetailPage.
+ * Set Astro.locals.myBlogMarkdownHtml before rendering.
+ */
+const html =
+  typeof Astro.locals.myBlogMarkdownHtml === "string"
+    ? Astro.locals.myBlogMarkdownHtml
+    : "";
+---
+
+<div class="markdown-body content-markdown" set:html={html} />
